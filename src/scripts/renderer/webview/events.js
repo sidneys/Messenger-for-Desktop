@@ -42,3 +42,14 @@ ipcRenderer.on('track-analytics', function (event, name, args) {
     logError(new Error('piwik.getTracker is not a function'));
   }
 });
+
+/**
+ * Update the request filter configuration
+ */
+ipcRenderer.on('requestfilter', function (event, title, state) {
+  if (state) {
+    requestfilter.add(title);
+  } else {
+    requestfilter.remove(title);
+  }
+});

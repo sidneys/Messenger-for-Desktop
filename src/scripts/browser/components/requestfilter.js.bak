@@ -1,0 +1,223 @@
+
+import {app, webContents} from 'electron';
+import prefs from 'common/utils/prefs';
+
+const matchPattern = require('match-pattern');
+
+
+/**
+ * @constant
+ * @default
+ */
+const defaultInterval = 2000;
+
+/**
+ * Currently active filter patterns
+ * @default
+ */
+let filterEnabled = false;
+let filterPatternSet = new Set();
+
+
+/**
+ * Pattern library
+ * @constant
+ * @default
+ */
+const filterLibrary = {
+  'seen': new Set([
+    'https://www.messenger.com/ajax/mercury/change_read_status.php*', 
+    'https://www.messenger.com/ajax/mercury/delivery_receipts.php*',
+    'https://www.messenger.com/ajax/mercury/mark_seen.php*',
+    'https://www.messenger.com/ajax/mercury/unread_threads.php*'
+    ]),
+  'typing': new Set([
+    'https://www.messenger.com/ajax/messaging/typ.php*'
+  ]),
+  'online': new Set([
+    'https://edge-chat.*.com/*',
+    'https://0-edge-chat.*.com/*',
+    'https://1-edge-chat.*.com/*', 
+    'https://2-edge-chat.*.com/*',
+    'https://3-edge-chat.*.com/*',
+    'https://4-edge-chat.*.com/*',
+    'https://5-edge-chat.*.com/*',
+    'https://6-edge-chat.*.com/*', 
+    'https://7-edge-chat.*.com/*',
+    'https://8-edge-chat.*.com/*',
+    'https://9-edge-chat.*.com/*',
+    'https://www.messenger.com/ajax/bz*', 
+    'https://www.messenger.com/ajax/chat/*',
+    'https://www.messenger.com/chat/*',
+    'https://www.messenger.com/ajax/presence/*'
+  ])
+};
+
+/**
+ * Trim URL to ellipsis
+ * @param {String} str - String
+ * @param {Number=} max - Maximum length
+ * @param {String=} text - Ellipsis text
+ * @returns {String} Trimmed
+ * @private
+ */
+let ellipsis = (str, max = 60, text = '...') => {
+  return (str.length > max) ? str.substr(0, ((max/(text.length-1))+(text.length-1))) + text + str.substr(str.length-((max/(text.length-1))+(text.length-1)), str.length) : str;
+};
+
+/**
+ * Add filter to session
+ * @param {Electron.Session} session - Session
+ * @param {Function=} callback - Callback
+ * @private
+ */
+let register = (session, callback = () => {}) => {
+  log('register');
+  session.webRequest.onBeforeRequest({ urls: null }, (details, cb) => {
+    const found = [...filterPatternSet].some((pattern) => {
+      return (matchPattern.parse(pattern)).test(details.url);
+    })
+    cb({ cancel: found });
+  });
+  callback();
+};
+
+/**
+ * Remove filter from session
+ * @param {Electron.Session} session - Session
+ * @param {Function=} callback - Callback
+ * @private
+ */
+let deregister = (session, callback = () => {}) => {
+  log('deregister');
+  session.webRequest.onBeforeRequest({ urls: null }, (details, cb) => {
+    log('[ALLOW]', ellipsis(details.url));
+    cb({});
+  });
+  callback();
+};
+
+/**
+ * Set global filter state
+ * @param {Boolean} state - Enable filter
+ * @param {Boolean} callback - Callback
+ * @private
+ */
+let setRequestfilterState = (state, callback = () => {}) => {
+  log('setRequestfilterState');
+  let interval = setInterval(() => {
+    const contentsList = webContents.getAllWebContents();
+    if (contentsList.length === 0) { return; }
+    contentsList.forEach((contents, index, array) => {
+      if (Boolean(state) === true) {
+        register(contents.session);
+      } else {
+        deregister(contents.session);
+      }
+
+      if (array.length === (index + 1)) {
+          filterEnabled = Boolean(state);
+          callback(null);
+          //log([...filterPatternSet]);
+      }
+    });
+    clearInterval(interval);
+  }, defaultInterval);
+};
+
+
+/**
+ * Stop Filter
+ * @param {Function} callback - Callback
+ */
+let stopFiltering = (callback = () => {}) => {
+  log('stopFiltering');
+  setRequestfilterState(false, () => callback(null));
+};
+
+/**
+ * Start Filter
+ * @param {Function} callback - Callback
+ */
+let startFiltering = (callback = () => {}) => {
+  log('startFiltering');
+  setRequestfilterState(true, () => callback(null));
+};
+
+/**
+ * Restart Filter
+ * @param {Function} callback - Callback
+ */
+let restartFiltering = (callback = () => {}) => {
+  log('restartFiltering');
+  stopFiltering(() => startFiltering(() => callback(null)));
+};
+
+
+/**
+ * Add named library url filter pattern
+ * @param {String} title - Pattern title
+ */
+let addFilter = (title) => {
+  log('addFilter');
+  const filterSet = filterLibrary[title];
+  if (filterSet) {
+    // union sets
+    filterPatternSet = new Set([...filterPatternSet, ...filterSet]);
+  }
+};
+
+/**
+ * Remove filter pattern
+ * @param {String} title - Pattern title
+ */
+let removeFilter = (title) => {
+  log('removeFilter');
+  const filterSet = filterLibrary[title];
+  if (filterSet) {
+    // diff sets
+    filterPatternSet = new Set([...filterPatternSet].filter((pattern) => !filterSet.has(pattern)));
+  }
+};
+
+/**
+ * Load filter from preferences
+ */
+let loadPreferences = () => {
+  log('loadPreferences');
+
+  prefs.get('requestfilter-filterlist').forEach((filterName) => addFilter(filterName));
+
+  if ([...filterPatternSet].length === 0) {
+    stopFiltering();
+  } else {
+    startFiltering();
+  }
+};
+
+
+/**
+ * Init
+ */
+let init = () => {
+  log('init');
+
+  loadPreferences();
+
+  log([...filterPatternSet]);
+};
+
+
+
+/**
+ * @exports
+ */
+module.exports = {
+  add: addFilter,
+  remove: removeFilter,
+  stop: stopFiltering,
+  start: startFiltering,
+  restart: restartFiltering,
+  load: loadPreferences,
+  init: init
+};

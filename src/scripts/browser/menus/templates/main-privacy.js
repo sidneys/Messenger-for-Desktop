@@ -1,29 +1,14 @@
 import prefs from 'browser/utils/prefs';
+import Requestfilter from 'browser/components/requestfilter';
 
 export default {
   label: 'Privacy',
-  submenu: [{
+  submenu: Requestfilter.list().map((filter) => ({
     type: 'checkbox',
-    label: 'Report App Stats and Crashes',
-    checked: prefs.get('analytics-track'),
+    label: filter.description,
+    checked: prefs.get(`requestfilter:${filter.id}`),
     click (menuItem) {
-      prefs.set('analytics-track', menuItem.checked);
+      prefs.set(`requestfilter:${filter.id}`, menuItem.checked);
     }
-  }, {
-    type: 'separator'
-  }, {
-    type: 'checkbox',
-    label: 'Block Sending Seen Status',
-    checked: prefs.get('block-indicator-seen'),
-    click (menuItem) {
-      prefs.set('block-indicator-seen', menuItem.checked);
-    }
-  }, {
-    type: 'checkbox',
-    label: 'Block Sending Typing Status',
-    checked: prefs.get('block-indicator-typing'),
-    click (menuItem) {
-      prefs.set('block-indicator-typing', menuItem.checked);
-    }
-  }]
+  }))
 };

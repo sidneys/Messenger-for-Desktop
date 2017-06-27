@@ -1,4 +1,4 @@
-import {app, dialog, session, screen} from 'electron';
+import {app, dialog, screen, session, webContents} from 'electron';
 import yargs from 'yargs';
 
 import prefs from 'browser/utils/prefs';
@@ -96,7 +96,6 @@ if (options.portable) {
     log('ready');
 
     enableHighResResources();
-    injectRequestFilter();
 
     log('launching app');
     const Application = require('browser/application').default;
@@ -175,24 +174,5 @@ function enableHighResResources () {
       details.requestHeaders.Cookie = cookie;
     }
     callback({cancel: false, requestHeaders: details.requestHeaders});
-  });
-}
-
-function injectRequestFilter () {
-  const PATTERNS_READ = ['*://*.facebook.com/*change_read_status*', '*://*.messenger.com/*change_read_status*'];
-  const PATTERNS_TYPING = ['*://*.facebook.com/*typ.php*', '*://*.messenger.com/*typ.php*'];
-
-  // block read status
-  session.defaultSession.webRequest.onBeforeRequest({urls: PATTERNS_READ}, (details, callback) => {
-    const block = prefs.get('block-indicator-seen');
-    log('request to', details.url, block ? 'blocked' : 'not blocked');
-    callback({cancel: block});
-  });
-
-  // block typing status
-  session.defaultSession.webRequest.onBeforeRequest({urls: PATTERNS_TYPING}, (details, callback) => {
-    const block = prefs.get('block-indicator-typing');
-    log('request to', details.url, block ? 'blocked' : 'not blocked');
-    callback({cancel: block});
   });
 }

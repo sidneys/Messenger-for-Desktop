@@ -2,6 +2,7 @@ import {app, Menu} from 'electron';
 
 import prefs from 'browser/utils/prefs';
 import AutoUpdater from 'browser/components/auto-updater';
+import Requestfilter from 'browser/components/requestfilter';
 import {findItemByLabel} from 'browser/menus/utils';
 import mainMenuTemplate from 'browser/menus/main';
 
@@ -36,6 +37,9 @@ class Application {
 
     // Others
     this.autoLauncher = new AutoLauncher();
+
+    // request blocker
+    this.requestfilter = new Requestfilter();
 
     // Create and set the tray icon
     this.trayManager = new TrayManager(this.mainWindowManager);
