@@ -115,6 +115,15 @@ export default {
   }, {
     type: 'separator'
   }, {
+    type: 'checkbox',
+    label: 'Report App Stats and Crashes',
+    checked: prefs.get('analytics-track'),
+    click (menuItem) {
+      prefs.set('analytics-track', menuItem.checked);
+    }
+  }, {
+    type: 'separator'
+  }, {
     label: 'Restart in Debug Mode',
     visible: !global.options.debug,
     click () {

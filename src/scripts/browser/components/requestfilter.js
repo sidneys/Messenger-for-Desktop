@@ -15,33 +15,35 @@ const defaultDuration = 2000;
  */
 
 /**
- * Url Filters
+ * Filters
  * @type {UrlFilter[]}
  * @default
  */
-const defaultUrlFilterList = [{
+const defaultFilters = [{
   id: 'block_seen',
-  description: `Don't update "Last Seen..." status`,
+  description: `Do not update "Last Seen..." status`,
   urls: [
-    '*://*.facebook.com/*change_read_status*',
-    '*://*.messenger.com/*change_read_status*',
-    '*://*.facebook.com/*delivery_receipts*',
-    '*://*.messenger.com/*delivery_receipts*',
-    '*://*.facebook.com/*mark_seen*',
-    '*://*.messenger.com/*mark_seen*',
-    '*://*.facebook.com/*unread_threads*',
-    '*://*.messenger.com/*unread_threads*'
+    '*://*.facebook.com/ajax/mercury/change_read_status.php*',
+    '*://*.facebook.com/ajax/mercury/delivery_receipts.php*',
+    '*://*.facebook.com/ajax/mercury/mark_seen.php*',
+    '*://*.facebook.com/ajax/mercury/unread_threads.php*',
+    '*://*.facebook.com/ajax/notifications/mark_read.php*',
+    '*://*.messenger.com/ajax/mercury/change_read_status.php*',
+    '*://*.messenger.com/ajax/mercury/delivery_receipts.php*',
+    '*://*.messenger.com/ajax/mercury/mark_seen.php*',
+    '*://*.messenger.com/ajax/mercury/unread_threads.php*',
+    '*://*.messenger.com/ajax/notifications/mark_read.php*'
   ]
 }, {
   id: 'block_typing',
-  description: `Don't send "Typing" indicator`,
+  description: `Do not send "is typing" indicator`,
   urls: [
-    '*://*.facebook.com/*typ.php*',
-    '*://*.messenger.com/*typ.php*'
+    '*://*.facebook.com/ajax/messaging/typ.php*',
+    '*://*.messenger.com/ajax/messaging/typ.php*'
   ]
 }, {
   id: 'block_online',
-  description: `Suppress "Is Online" status`,
+  description: `Suppress "is online" status`,
   urls: [
     '*://edge-chat.facebook.com/*',
     '*://0-edge-chat.facebook.com/*',
@@ -54,10 +56,11 @@ const defaultUrlFilterList = [{
     '*://7-edge-chat.facebook.com/*',
     '*://8-edge-chat.facebook.com/*',
     '*://9-edge-chat.facebook.com/*',
-    '*://www.facebook.com/ajax/bz*',
-    '*://www.facebook.com/ajax/chat/*',
-    '*://www.facebook.com/chat/*',
-    '*://www.facebook.com/ajax/presence/*',
+    '*://*.facebook.com/ajax/bz*',
+    '*://*.facebook.com/ajax/chat/*',
+    '*://*.facebook.com/chat/*',
+    '*://*.facebook.com/ajax/presence/*',
+    '*://*.facebook.com/rtc/*',
     '*://edge-chat.messenger.com/*',
     '*://0-edge-chat.messenger.com/*',
     '*://1-edge-chat.messenger.com/*',
@@ -69,10 +72,11 @@ const defaultUrlFilterList = [{
     '*://7-edge-chat.messenger.com/*',
     '*://8-edge-chat.messenger.com/*',
     '*://9-edge-chat.messenger.com/*',
-    '*://www.messenger.com/ajax/bz*',
-    '*://www.messenger.com/ajax/chat/*',
-    '*://www.messenger.com/chat/*',
-    '*://www.messenger.com/ajax/presence/*'
+    '*://*.messenger.com/ajax/bz*',
+    '*://*.messenger.com/ajax/chat/*',
+    '*://*.messenger.com/chat/*',
+    '*://*.messenger.com/ajax/presence/*',
+    '*://*.messenger.com/rtc/*'
   ]
 }];
 
@@ -84,7 +88,7 @@ const defaultUrlFilterList = [{
  * @returns {String} Trimmed
  * @private
  */
-let ellipsis = (str, max = 60, text = '...') => {
+let ellipsis = (str, max = 80, text = '...') => {
   return (str.length > max) ? str.substr(0, ((max / (text.length - 1)) + (text.length - 1))) + text + str.substr(str.length - ((max / (text.length - 1)) + (text.length - 1)), str.length) : str;
 };
 
@@ -94,83 +98,83 @@ let ellipsis = (str, max = 60, text = '...') => {
  */
 class Requestfilter {
   constructor () {
-    this.registered = false;
-    this.urlfilterList = defaultUrlFilterList;
+    this.isEnabled = false;
+    this.patternList = [];
 
-    if (!this.registered) {
+    if (!this.isEnabled) {
       this.register();
     }
   }
 
   /**
-   * @public
-   *
-   * Get Enable/disable filter
-   * @param {String} id - Identifier
-   * @returns {Boolean}
+   * Update url match patterns
+   * @private
    */
-  static isEnabled (id) {
-    return prefs.get(`requestfilter:${id}`);
+  updatePatternList () {
+    log('updatePatternList');
+
+    // Reset patterns
+    this.patternList = [];
+
+    // Compose active patterns
+    defaultFilters.forEach((urlfilter, urlfilterIndex, urlfilterArray) => {
+      const enabled = prefs.get(`requestfilter:${urlfilter.id}`);
+      if (enabled) {
+        log('updatePatternList', 'enabled:', urlfilter.id);
+        this.patternList = this.patternList.concat(urlfilter.urls);
+      }
+    });
+
+    // Remove doublettes
+    this.patternList = [...new Set(this.patternList)];
+
+    log('updatePatternList', 'this.patternList:', this.patternList);
   }
 
   /**
-   * @public
-   *
    * @returns {Array}
+   * @public
    */
   static list () {
-    return defaultUrlFilterList;
+    return defaultFilters;
   }
 
   /**
-   * @private
    * Registers filters
+   * @public
    */
   register () {
     log('register');
 
     // wait for sessions
     let lookupInterval = setInterval(() => {
-      // const sessionList = webContents.getAllWebContents().filter(webcontents => webcontents.session);
-      const sessionList = webContents.getAllWebContents().map(webcontents => webcontents.session);
-      if (sessionList.length === 0) { return; } else { clearInterval(lookupInterval); }
-      // loop sessions
-      sessionList.forEach((session, sessionIndex, sessionArray) => {
-        // loop url filters
-        this.urlfilterList.forEach((urlfilter, urlfilterIndex, urlfilterArray) => {
-          /**
-           * @listens Electron.WebRequest
-           */
-          session.webRequest.onBeforeRequest({urls: urlfilter.urls}, (details, callback) => {
-            const block = Requestfilter.isEnabled(urlfilter.id);
-            block ? log('[BLOCKED]', ellipsis(details.url)) : void 0;
-            callback({cancel: block});
-          });
+      const sessionList = [];
 
-          // last iteration
-          if (sessionArray.length === (sessionIndex + 1)) {
-            if ((urlfilterArray.length === (urlfilterIndex + 1))) {
-              this.registered = true;
-              log('register', 'this.registered', this.registered);
-            }
-          }
+      webContents.getAllWebContents().forEach((contents) => {
+        contents.getURL().startsWith('http') ? sessionList.push(contents.session) : void 0;
+      });
+
+      if (sessionList.length === 0) { return; } else { clearInterval(lookupInterval); }
+
+      // Update patterns
+      this.updatePatternList();
+
+      // enable for each session
+      sessionList.forEach((session, sessionIndex, sessionArray) => {
+        /** @listens Electron.WebRequest */
+        session.webRequest.onBeforeRequest({urls: this.patternList}, (details, callback) => {
+          const hasActiveFilterPattern = this.patternList.length > 0;
+          hasActiveFilterPattern ? log('[BLOCKED]', ellipsis(details.url)) : void 0;
+          callback({cancel: hasActiveFilterPattern});
         });
+
+        // last iteration
+        if (sessionArray.length === (sessionIndex + 1)) {
+          this.isEnabled = true;
+        }
+
       });
     }, defaultDuration);
-  }
-
-  /**
-   * @public
-   *
-   * Enable/disable filter
-   * @param {Boolean} enableFilter - On/off
-   * @param {String=} id - Identifier
-   */
-  enable (enableFilter, id) {
-    log('enable', 'enable:', enableFilter, 'id:', id);
-
-    // Get list of filter ids (default: all)
-    prefs.set(`requestfilter:${id}`, Boolean(enableFilter));
   }
 }
 

@@ -9,6 +9,7 @@ export default {
     checked: prefs.get(`requestfilter:${filter.id}`),
     click (menuItem) {
       prefs.set(`requestfilter:${filter.id}`, menuItem.checked);
+      global.application.requestfilter.register();
     }
   }))
 };
