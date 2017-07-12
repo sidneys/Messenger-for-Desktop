@@ -107,31 +107,32 @@ class Requestfilter {
   }
 
   /**
-   * Update url match patterns
+   * Update active url blocking patterns
    * @private
    */
   updatePatternList () {
-    log('updatePatternList');
-
-    // Reset patterns
+    // Reset pattern list
     this.patternList = [];
+    log('removed all url filters');
 
-    // Compose active patterns
+    // Check preferences and compose active patterns
     defaultFilters.forEach((urlfilter, urlfilterIndex, urlfilterArray) => {
       const enabled = prefs.get(`requestfilter:${urlfilter.id}`);
       if (enabled) {
-        log('updatePatternList', 'enabled:', urlfilter.id);
         this.patternList = this.patternList.concat(urlfilter.urls);
+        log('enabled filter:', `"${urlfilter.id}"`);
+        urlfilter.urls.forEach(pattern => log('added url:', `"${pattern}"`));
       }
     });
 
-    // Remove doublettes
+    // Optimize 
     this.patternList = [...new Set(this.patternList)];
 
-    log('updatePatternList', 'this.patternList:', this.patternList);
+    log('enabled url filters:', this.patternList.length);
   }
 
   /**
+   * Get available filters
    * @returns {Array}
    * @public
    */
@@ -144,8 +145,6 @@ class Requestfilter {
    * @public
    */
   register () {
-    log('register');
-
     // wait for sessions
     let lookupInterval = setInterval(() => {
       const sessionList = [];
