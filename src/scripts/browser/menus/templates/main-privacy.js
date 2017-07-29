@@ -3,7 +3,7 @@ import Requestfilter from 'browser/components/requestfilter';
 
 export default {
   label: 'Privacy',
-  submenu: Requestfilter.list().map((filter) => ({
+  submenu: Requestfilter.listFilters().map((filter) => ({
     type: 'checkbox',
     label: filter.description,
     checked: prefs.get(`requestfilter:${filter.id}`),

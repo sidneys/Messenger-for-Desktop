@@ -136,7 +136,7 @@ class Requestfilter {
    * @returns {Array}
    * @public
    */
-  static list () {
+  static listFilters () {
     return defaultFilters;
   }
 
